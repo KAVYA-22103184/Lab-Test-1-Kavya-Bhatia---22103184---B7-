@@ -1,0 +1,78 @@
+
+import numpy as np  
+import matplotlib.pyplot as plt 
+from scipy.signal import butter, filtfilt  
+
+
+np.random.seed(0)  
+aqi_readings = np.random.normal(100, 20, 1440)  
+
+
+noise = np.random.normal(0, 10, 1440)  
+noisy_aqi_readings = aqi_readings + noise  
+
+
+def low_pass_filter(data, cutoff=0.1, order=2):
+    b, a = butter(order, cutoff, btype='low', analog=False)  
+    y = filtfilt(b, a, data)
+    return y
+
+
+smoothed_aqi_readings = low_pass_filter(noisy_aqi_readings)
+
+def compute_hourly_avg(data):
+    return np.mean(data.reshape(-1, 60), axis=1)  
+
+
+hourly_avg_aqi = compute_hourly_avg(smoothed_aqi_readings)
+
+
+plt.figure(figsize=(12, 8)) 
+
+
+plt.plot(noisy_aqi_readings, label='Noisy AQI data', color='blue', alpha=0.5)
+
+
+plt.plot(smoothed_aqi_readings, label='Smoothed AQI data', color='green')
+
+
+hourly_time = np.arange(0, 1440, 60) 
+plt.scatter(hourly_time, hourly_avg_aqi, label='Hourly Average AQI', color='red', marker='o')
+
+
+plt.title('Air Quality Index (AQI) Analysis Over 24 Hours')
+plt.xlabel('Time (minutes)')
+plt.ylabel('AQI Value')
+plt.legend()
+plt.grid(True)
+
+def detect_exceedance_intervals(data, threshold=100, min_duration=15):
+    exceed_indices = np.where(data > threshold)[0]  
+    exceed_periods = [] 
+    
+   
+    start_idx = None
+    for i in range(len(exceed_indices) - 1):
+        if start_idx is None:
+            start_idx = exceed_indices[i]
+        
+        if exceed_indices[i+1] != exceed_indices[i] + 1:  
+            if (exceed_indices[i] - start_idx + 1) >= min_duration:
+                exceed_periods.append((start_idx, exceed_indices[i]))
+            start_idx = None
+    
+   
+    if start_idx is not None and (exceed_indices[-1] - start_idx + 1) >= min_duration:
+        exceed_periods.append((start_idx, exceed_indices[-1]))
+
+    return exceed_periods
+
+
+exceed_periods = detect_exceedance_intervals(noisy_aqi_readings)
+
+
+for start, end in exceed_periods:
+    plt.axvspan(start, end, color='red', alpha=0.3)  
+
+plt.show()
+
